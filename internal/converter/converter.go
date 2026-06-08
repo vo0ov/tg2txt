@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/vo0ov/tg2txt/internal/formatter"
 	"github.com/vo0ov/tg2txt/internal/telegram"
@@ -16,6 +17,14 @@ type Options struct {
 	Destination string
 	SkipService bool
 	SkipHeader  bool
+	Format      formatter.Options
+	Join        JoinOptions
+}
+
+type JoinOptions struct {
+	Enabled       bool
+	Separator     string
+	WindowSeconds int
 }
 
 type Result struct {
@@ -58,10 +67,15 @@ func Convert(options Options) (result Result, err error) {
 		}
 	}()
 
-	var lines []string
+	var lines []outputLine
 	if export.Name != "" && !options.SkipHeader {
-		lines = append(lines, "# "+export.Name, "")
+		lines = append(lines, outputLine{Line: "# " + export.Name}, outputLine{})
 	}
+
+	formatOptions := options.Format
+	formatOptions.ChatName = export.Name
+	formatOptions.ChatType = export.Type
+	formatOptions.ChatID = export.ID
 
 	result.Total = len(export.Messages)
 	for i := range export.Messages {
@@ -72,19 +86,81 @@ func Convert(options Options) (result Result, err error) {
 			continue
 		}
 
-		line, ok := formatter.Message(msg)
+		formatted, ok := formatter.Format(msg, formatOptions)
 		if !ok {
 			result.Skipped++
 			continue
 		}
+
+		line := outputLine{
+			Line:      formatted.Line,
+			Sender:    formatted.Sender,
+			Body:      formatted.Body,
+			Mergeable: formatted.Mergeable,
+		}
+		if when, ok := messageTime(msg); ok {
+			line.Time = when
+			line.HasTime = true
+		}
+
+		if options.Join.Enabled && mergeLastLine(lines, line, options.Join) {
+			lines[len(lines)-1].Line += options.Join.Separator + line.Body
+			lines[len(lines)-1].Time = line.Time
+			lines[len(lines)-1].HasTime = line.HasTime
+			continue
+		}
+
 		lines = append(lines, line)
 	}
 
-	content := strings.Join(lines, "\n") + "\n"
+	content := strings.Join(outputStrings(lines), "\n") + "\n"
 	if _, err = out.WriteString(content); err != nil {
 		return result, fmt.Errorf("failed to write output file: %w", err)
 	}
 
 	result.Written = result.Total - result.Skipped
 	return result, nil
+}
+
+type outputLine struct {
+	Line      string
+	Sender    string
+	Body      string
+	Time      time.Time
+	HasTime   bool
+	Mergeable bool
+}
+
+func mergeLastLine(lines []outputLine, next outputLine, options JoinOptions) bool {
+	if len(lines) == 0 || !next.Mergeable {
+		return false
+	}
+
+	prev := lines[len(lines)-1]
+	if !prev.Mergeable || prev.Sender != next.Sender || !prev.HasTime || !next.HasTime {
+		return false
+	}
+
+	window := time.Duration(options.WindowSeconds) * time.Second
+	if window < 0 {
+		return false
+	}
+	delta := next.Time.Sub(prev.Time)
+	return delta >= 0 && delta <= window
+}
+
+func messageTime(msg *telegram.Message) (time.Time, bool) {
+	t, err := time.Parse("2006-01-02T15:04:05", msg.Date)
+	if err != nil {
+		return time.Time{}, false
+	}
+	return t, true
+}
+
+func outputStrings(lines []outputLine) []string {
+	out := make([]string, 0, len(lines))
+	for _, line := range lines {
+		out = append(out, line.Line)
+	}
+	return out
 }

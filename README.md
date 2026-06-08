@@ -33,7 +33,7 @@ The output includes messages, timestamps, sender names, replies, forwards, media
 | **Context**        | Keeps replies, forwarded-from labels, contacts, polls, and locations         |
 | **Reactions**      | Writes reaction summaries with emoji, names, and counts                      |
 | **Service Events** | Handles calls, joins, leaves, pins, renamed chats, and group updates         |
-| **CLI Flags**      | Supports custom input/output, `--no-service`, `--no-header`, and `--version` |
+| **CLI Flags**      | Supports custom output layers, plain dialogue, anonymization, and message joining |
 | **Release Builds** | Ships archives for Windows, macOS, and Linux across common architectures     |
 
 ---
@@ -125,10 +125,31 @@ For ARM64, use `tg2txt_vX.Y.Z_linux_arm64.tar.gz`. For ARMv7, use `tg2txt_vX.Y.Z
 ```text
 tg2txt [flags]
 
--i FILE        input Telegram JSON export (default: result.json)
--o FILE        output TXT file           (default: chat.txt)
---no-service   skip service events
+-i, --input FILE
+               input Telegram JSON export (default: result.json)
+-o, --output FILE
+               output TXT file           (default: chat.txt)
 --no-header    skip the "# Chat Name" header
+--no-time      skip message timestamps
+--no-id        skip Telegram message ids
+--no-service   skip service events
+--no-media     skip media/contact/location/poll markers
+--no-reactions skip reaction summaries
+--no-entities  skip Telegram entity formatting
+--no-forwards  skip forwarded-from context
+--no-replies   skip reply context
+--plain-dialogue
+               preset for "Name: text" dialogue output
+--anon-peer NAME
+               rename the peer in personal_chat exports
+--anon-self NAME
+               rename the export owner in personal_chat exports
+--join-messages
+               merge nearby consecutive messages from the same sender
+--join-separator TEXT
+               separator for merged message bodies (default: \n)
+--join-window SECONDS
+               merge messages within this many seconds (default: 15)
 --version      show build information
 ```
 
@@ -136,7 +157,8 @@ tg2txt [flags]
 tg2txt
 tg2txt -i result.json -o chat.txt
 tg2txt -i backup.json --no-service
-tg2txt --no-header
+tg2txt --plain-dialogue --anon-peer Bob --anon-self Alex
+tg2txt --plain-dialogue --join-messages --join-window 15
 ```
 
 ---

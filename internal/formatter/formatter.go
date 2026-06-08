@@ -10,6 +10,29 @@ import (
 	"github.com/vo0ov/tg2txt/internal/telegram"
 )
 
+type Options struct {
+	SkipTime      bool
+	SkipID        bool
+	SkipMedia     bool
+	SkipReactions bool
+	SkipEntities  bool
+	SkipForwards  bool
+	SkipReplies   bool
+	PlainDialogue bool
+	AnonPeer      string
+	AnonSelf      string
+	ChatName      string
+	ChatType      string
+	ChatID        int64
+}
+
+type FormattedMessage struct {
+	Line      string
+	Sender    string
+	Body      string
+	Mergeable bool
+}
+
 // formatDate converts Telegram timestamps into a compact chat-log timestamp.
 func formatDate(raw string) string {
 	t, err := time.Parse("2006-01-02T15:04:05", raw)
@@ -49,7 +72,7 @@ func formatDuration(secs int) string {
 	return fmt.Sprintf("%d:%02d", m, s)
 }
 
-func extractText(raw json.RawMessage) string {
+func extractText(raw json.RawMessage, plain bool) string {
 	if len(raw) == 0 {
 		return ""
 	}
@@ -78,6 +101,11 @@ func extractText(raw json.RawMessage) string {
 		}
 
 		t := chunk.Text
+		if plain {
+			b.WriteString(t)
+			continue
+		}
+
 		switch chunk.Type {
 		case "link":
 			b.WriteByte('[')
@@ -296,39 +324,51 @@ func formatService(m *telegram.Message) (string, bool) {
 	}
 }
 
-func Message(m *telegram.Message) (string, bool) {
-	date := formatDate(m.Date)
+func Message(m *telegram.Message, options Options) (string, bool) {
+	formatted, ok := Format(m, options)
+	if !ok {
+		return "", false
+	}
+	return formatted.Line, true
+}
 
-	sender := m.From
-	if sender == "" {
-		sender = m.Actor
-	}
-	if sender == "" {
-		sender = "?"
-	}
+func Format(m *telegram.Message, options Options) (FormattedMessage, bool) {
+	date := formatDate(m.Date)
+	sender := formatSender(m, options)
 
 	idTag := ""
-	if m.ID != 0 {
+	if m.ID != 0 && !options.SkipID {
 		idTag = fmt.Sprintf("#%d", m.ID)
 	}
 
 	if m.Type == "service" {
 		action, ok := formatService(m)
 		if !ok {
-			return "", false
+			return FormattedMessage{}, false
 		}
-		return fmt.Sprintf("[%s] %s :: %s: %s", date, idTag, sender, action), true
+		line := joinPrefix(date, idTag, options) + ":: " + sender + ": " + action
+		return FormattedMessage{
+			Line:   line,
+			Sender: sender,
+			Body:   action,
+		}, true
 	}
 
-	text := extractText(m.Text)
-	media := extractMedia(m)
-	reactions := extractReactions(m)
+	text := extractText(m.Text, options.SkipEntities)
+	media := []string(nil)
+	if !options.SkipMedia {
+		media = extractMedia(m)
+	}
+	reactions := ""
+	if !options.SkipReactions {
+		reactions = extractReactions(m)
+	}
 
 	var bodyParts []string
-	if m.ForwardedFrom != "" {
+	if m.ForwardedFrom != "" && !options.SkipForwards {
 		bodyParts = append(bodyParts, "↳ forwarded from "+m.ForwardedFrom)
 	}
-	if m.ReplyToMessageID != 0 {
+	if m.ReplyToMessageID != 0 && !options.SkipReplies {
 		bodyParts = append(bodyParts, fmt.Sprintf("↩ reply to #%d", m.ReplyToMessageID))
 	}
 	if text != "" {
@@ -340,13 +380,70 @@ func Message(m *telegram.Message) (string, bool) {
 
 	body := strings.Join(bodyParts, "  ")
 	if body == "" {
+		if options.PlainDialogue {
+			return FormattedMessage{}, false
+		}
 		body = "(empty)"
 	}
 
-	line := fmt.Sprintf("[%s] %s %s: %s", date, idTag, sender, body)
+	line := joinPrefix(date, idTag, options) + sender + ": " + body
 	if reactions != "" {
 		line += "  " + reactions
 	}
 
-	return line, true
+	return FormattedMessage{
+		Line:      line,
+		Sender:    sender,
+		Body:      body,
+		Mergeable: text != "",
+	}, true
+}
+
+func formatSender(m *telegram.Message, options Options) string {
+	sender := m.From
+	if sender == "" {
+		sender = m.Actor
+	}
+	if sender == "" {
+		sender = "?"
+	}
+
+	if options.ChatType != "personal_chat" {
+		return sender
+	}
+
+	if isPeer(m, options) {
+		if options.AnonPeer != "" {
+			return options.AnonPeer
+		}
+		return sender
+	}
+	if options.AnonSelf != "" {
+		return options.AnonSelf
+	}
+	return sender
+}
+
+func isPeer(m *telegram.Message, options Options) bool {
+	if options.ChatName != "" && m.From == options.ChatName {
+		return true
+	}
+	if options.ChatID != 0 && m.FromID == fmt.Sprintf("user%d", options.ChatID) {
+		return true
+	}
+	return false
+}
+
+func joinPrefix(date, idTag string, options Options) string {
+	var parts []string
+	if !options.SkipTime {
+		parts = append(parts, "["+date+"]")
+	}
+	if idTag != "" {
+		parts = append(parts, idTag)
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return strings.Join(parts, " ") + " "
 }

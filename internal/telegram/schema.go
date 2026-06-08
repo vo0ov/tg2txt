@@ -3,6 +3,8 @@ package telegram
 import "encoding/json"
 
 type Export struct {
+	Type     string    `json:"type"`
+	ID       int64     `json:"id"`
 	Name     string    `json:"name"`
 	Messages []Message `json:"messages"`
 }
@@ -12,6 +14,7 @@ type Message struct {
 	Type             string          `json:"type"`
 	Date             string          `json:"date"`
 	From             string          `json:"from"`
+	FromID           string          `json:"from_id"`
 	Actor            string          `json:"actor"`
 	Text             json.RawMessage `json:"text"` // string | []TextChunk
 	MediaType        string          `json:"media_type"`
