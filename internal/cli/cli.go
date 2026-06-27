@@ -22,6 +22,8 @@ Flags:
                  input Telegram JSON export (default: result.json)
   -o, --output FILE
                  output TXT file           (default: chat.txt)
+  --activity-png FILE
+                 output PNG activity chart by day
   --no-header    skip the "# Chat Name" header
   --no-time      skip message timestamps
   --no-id        skip Telegram message ids
@@ -49,6 +51,7 @@ Flags:
 Examples:
   tg2txt
   tg2txt -i result.json -o chat.txt
+  tg2txt -i result.json -o chat.txt --activity-png activity.png
   tg2txt -i backup.json --no-service
   tg2txt --plain-dialogue --anon-peer Bob --anon-self Alex
 `
@@ -56,6 +59,7 @@ Examples:
 func Run(args []string, stdout, stderr io.Writer) int {
 	var input string
 	var output string
+	var activityPNG string
 	var noService bool
 	var noHeader bool
 	var noTime bool
@@ -88,6 +92,7 @@ func Run(args []string, stdout, stderr io.Writer) int {
 	fs.StringVar(&input, "input", "result.json", "input Telegram JSON export")
 	fs.StringVar(&output, "o", "chat.txt", "output TXT file")
 	fs.StringVar(&output, "output", "chat.txt", "output TXT file")
+	fs.StringVar(&activityPNG, "activity-png", "", "output PNG activity chart by day")
 	fs.BoolVar(&noService, "no-service", false, "skip service events")
 	fs.BoolVar(&noHeader, "no-header", false, "skip the chat header")
 	fs.BoolVar(&noTime, "no-time", false, "skip message timestamps")
@@ -133,10 +138,11 @@ func Run(args []string, stdout, stderr io.Writer) int {
 	}
 
 	result, err := converter.Convert(converter.Options{
-		Source:      input,
-		Destination: output,
-		SkipService: noService,
-		SkipHeader:  noHeader,
+		Source:              input,
+		Destination:         output,
+		ActivityDestination: activityPNG,
+		SkipService:         noService,
+		SkipHeader:          noHeader,
 		Join: converter.JoinOptions{
 			Enabled:       joinMessages,
 			Separator:     decodeSeparator(joinSeparator),
@@ -163,6 +169,9 @@ func Run(args []string, stdout, stderr io.Writer) int {
 	writef(stdout, "✨ Converted %d / %d messages → %s\n", result.Written, result.Total, result.Destination)
 	if result.Skipped > 0 {
 		writef(stdout, "   Skipped: %d\n", result.Skipped)
+	}
+	if result.ActivityDestination != "" {
+		writef(stdout, "📈 Activity chart → %s\n", result.ActivityDestination)
 	}
 	return 0
 }

@@ -8,17 +8,19 @@ import (
 	"strings"
 	"time"
 
+	"github.com/vo0ov/tg2txt/internal/activity"
 	"github.com/vo0ov/tg2txt/internal/formatter"
 	"github.com/vo0ov/tg2txt/internal/telegram"
 )
 
 type Options struct {
-	Source      string
-	Destination string
-	SkipService bool
-	SkipHeader  bool
-	Format      formatter.Options
-	Join        JoinOptions
+	Source              string
+	Destination         string
+	ActivityDestination string
+	SkipService         bool
+	SkipHeader          bool
+	Format              formatter.Options
+	Join                JoinOptions
 }
 
 type JoinOptions struct {
@@ -28,28 +30,22 @@ type JoinOptions struct {
 }
 
 type Result struct {
-	Total       int
-	Written     int
-	Skipped     int
-	Destination string
+	Total               int
+	Written             int
+	Skipped             int
+	Destination         string
+	ActivityDestination string
 }
 
 func Convert(options Options) (result Result, err error) {
-	result = Result{Destination: options.Destination}
-	f, err := os.Open(options.Source)
-	if err != nil {
-		return result, fmt.Errorf("failed to open %s: %w", options.Source, err)
+	result = Result{
+		Destination:         options.Destination,
+		ActivityDestination: options.ActivityDestination,
 	}
-	defer func() {
-		if closeErr := f.Close(); closeErr != nil && err == nil {
-			err = fmt.Errorf("failed to close %s: %w", options.Source, closeErr)
-		}
-	}()
 
-	var export telegram.Export
-	err = json.NewDecoder(f).Decode(&export)
+	export, err := loadExport(options.Source)
 	if err != nil {
-		return result, fmt.Errorf("failed to parse Telegram JSON export: %w", err)
+		return result, err
 	}
 
 	err = os.MkdirAll(filepath.Dir(options.Destination), 0750)
@@ -118,8 +114,50 @@ func Convert(options Options) (result Result, err error) {
 		return result, fmt.Errorf("failed to write output file: %w", err)
 	}
 
+	if options.ActivityDestination != "" {
+		if _, err := activity.WritePNG(export.Messages, activity.Options{
+			Destination: options.ActivityDestination,
+			ChatName:    export.Name,
+		}); err != nil {
+			return result, err
+		}
+	}
+
 	result.Written = result.Total - result.Skipped
 	return result, nil
+}
+
+func loadExport(source string) (_ telegram.Export, err error) {
+	cleanSource := filepath.Clean(source)
+	rootPath := filepath.Dir(cleanSource)
+	fileName := filepath.Base(cleanSource)
+
+	root, err := os.OpenRoot(rootPath)
+	if err != nil {
+		return telegram.Export{}, fmt.Errorf("failed to open input directory %s: %w", rootPath, err)
+	}
+	defer func() {
+		if closeErr := root.Close(); closeErr != nil && err == nil {
+			err = fmt.Errorf("failed to close input directory %s: %w", rootPath, closeErr)
+		}
+	}()
+
+	f, err := root.Open(fileName)
+	if err != nil {
+		return telegram.Export{}, fmt.Errorf("failed to open %s: %w", source, err)
+	}
+	defer func() {
+		if closeErr := f.Close(); closeErr != nil && err == nil {
+			err = fmt.Errorf("failed to close %s: %w", source, closeErr)
+		}
+	}()
+
+	var export telegram.Export
+	err = json.NewDecoder(f).Decode(&export)
+	if err != nil {
+		return telegram.Export{}, fmt.Errorf("failed to parse Telegram JSON export: %w", err)
+	}
+	return export, nil
 }
 
 type outputLine struct {

@@ -34,6 +34,7 @@ The output includes messages, timestamps, sender names, replies, forwards, media
 | **Reactions**      | Writes reaction summaries with emoji, names, and counts                      |
 | **Service Events** | Handles calls, joins, leaves, pins, renamed chats, and group updates         |
 | **CLI Flags**      | Supports custom output layers, plain dialogue, anonymization, and message joining |
+| **Activity Graph** | Optionally builds a PNG chart of message volume by day across the full export |
 | **Release Builds** | Ships archives for Windows, macOS, and Linux across common architectures     |
 
 ---
@@ -133,6 +134,8 @@ tg2txt [flags]
 --no-time      skip message timestamps
 --no-id        skip Telegram message ids
 --no-service   skip service events
+--activity-png FILE
+               output PNG activity chart by day
 --no-media     skip media/contact/location/poll markers
 --no-reactions skip reaction summaries
 --no-entities  skip Telegram entity formatting
@@ -159,6 +162,7 @@ tg2txt -i result.json -o chat.txt
 tg2txt -i backup.json --no-service
 tg2txt --plain-dialogue --anon-peer Bob --anon-self Alex
 tg2txt --plain-dialogue --join-messages --join-window 15
+tg2txt -i result.json -o chat.txt --activity-png activity.png
 ```
 
 ---
@@ -172,6 +176,14 @@ tg2txt --plain-dialogue --join-messages --join-window 15
 [15.01.26 13:51] #422 Bob: [🎤 voice message (0:23)]  [Reactions: 👍 by Alice]
 [15.01.26 13:55] #423 :: Alice: 📌 pinned a message
 ```
+
+Optional activity chart:
+
+```bash
+tg2txt --activity-png activity.png
+```
+
+This produces a daily PNG timeline from the first exported message to the last one, including quiet days with `0` messages so the full period stays visible.
 
 ---
 
@@ -225,6 +237,10 @@ go build -o tg2txt ./cmd
 | Windows | `amd64`, `arm64`, `386`   |
 
 Releases are produced by [CD](https://github.com/vo0ov/tg2txt/actions/workflows/cd.yml) when a `v*` tag is pushed.
+
+## 📝 v2.0.0
+
+`v2.0.0` bundles the newer dialogue and anonymization flow, message joining, and PNG activity chart generation in one release line. Tagging `v2.0.0` will produce release archives with these features through the existing CD workflow.
 
 ---
 

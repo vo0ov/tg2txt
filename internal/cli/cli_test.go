@@ -231,3 +231,48 @@ func TestJoinWindowMustBeNonNegative(t *testing.T) {
 		t.Fatalf("stderr = %q", stderr.String())
 	}
 }
+
+func TestActivityPNGGeneratesChartFile(t *testing.T) {
+	dir := t.TempDir()
+	input := filepath.Join(dir, "result.json")
+	output := filepath.Join(dir, "chat.txt")
+	activity := filepath.Join(dir, "activity.png")
+
+	export := `{
+		"name": "Team Chat",
+		"type": "private_group",
+		"id": 1,
+		"messages": [
+			{"id": 1, "type": "message", "date": "2025-09-23T20:51:31", "from": "Alice", "text": "one"},
+			{"id": 2, "type": "service", "date": "2025-09-24T20:51:31", "actor": "Alice", "action": "edit_group_photo"},
+			{"id": 3, "type": "message", "date": "2025-09-25T20:51:31", "from": "Bob", "text": "two"}
+		]
+	}`
+
+	if err := os.WriteFile(input, []byte(export), 0600); err != nil {
+		t.Fatalf("failed to write input: %v", err)
+	}
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := Run([]string{
+		"--input", input,
+		"--output", output,
+		"--activity-png", activity,
+	}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("Run() code = %d, stderr = %q", code, stderr.String())
+	}
+
+	info, err := os.Stat(activity)
+	if err != nil {
+		t.Fatalf("os.Stat(activity) error = %v", err)
+	}
+	if info.Size() == 0 {
+		t.Fatal("activity.png is empty")
+	}
+
+	if !bytes.Contains(stdout.Bytes(), []byte("📈 Activity chart → "+activity)) {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+}
