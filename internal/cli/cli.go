@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"path/filepath"
 	"strings"
 
 	"github.com/vo0ov/tg2txt/internal/converter"
@@ -23,7 +24,9 @@ Flags:
   -o, --output FILE
                  output TXT file           (default: chat.txt)
   --activity-png FILE
-                 output PNG activity chart by day
+                 output PNG activity chart by day (default: chart.png)
+  --stats FILE
+                 output TXT chat statistics report (default: stats.txt)
   --no-header    skip the "# Chat Name" header
   --no-time      skip message timestamps
   --no-id        skip Telegram message ids
@@ -60,6 +63,7 @@ func Run(args []string, stdout, stderr io.Writer) int {
 	var input string
 	var output string
 	var activityPNG string
+	var statsTXT string
 	var noService bool
 	var noHeader bool
 	var noTime bool
@@ -93,6 +97,7 @@ func Run(args []string, stdout, stderr io.Writer) int {
 	fs.StringVar(&output, "o", "chat.txt", "output TXT file")
 	fs.StringVar(&output, "output", "chat.txt", "output TXT file")
 	fs.StringVar(&activityPNG, "activity-png", "", "output PNG activity chart by day")
+	fs.StringVar(&statsTXT, "stats", "", "output TXT chat statistics report")
 	fs.BoolVar(&noService, "no-service", false, "skip service events")
 	fs.BoolVar(&noHeader, "no-header", false, "skip the chat header")
 	fs.BoolVar(&noTime, "no-time", false, "skip message timestamps")
@@ -111,7 +116,7 @@ func Run(args []string, stdout, stderr io.Writer) int {
 	fs.BoolVar(&showVersion, "version", false, "show build information")
 	fs.Usage = func() {}
 
-	if err := fs.Parse(args); err != nil {
+	if err := fs.Parse(normalizeArgs(args)); err != nil {
 		writef(stderr, "❌ %s\n", err)
 		return 2
 	}
@@ -141,6 +146,7 @@ func Run(args []string, stdout, stderr io.Writer) int {
 		Source:              input,
 		Destination:         output,
 		ActivityDestination: activityPNG,
+		StatsDestination:    statsTXT,
 		SkipService:         noService,
 		SkipHeader:          noHeader,
 		Join: converter.JoinOptions{
@@ -172,6 +178,9 @@ func Run(args []string, stdout, stderr io.Writer) int {
 	}
 	if result.ActivityDestination != "" {
 		writef(stdout, "📈 Activity chart → %s\n", result.ActivityDestination)
+	}
+	if result.StatsDestination != "" {
+		writef(stdout, "📊 Stats report → %s\n", result.StatsDestination)
 	}
 	return 0
 }
@@ -211,4 +220,33 @@ func decodeSeparator(raw string) string {
 		`\t`, "\t",
 	)
 	return replacer.Replace(raw)
+}
+
+func normalizeArgs(args []string) []string {
+	normalized := make([]string, 0, len(args)+1)
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		switch arg {
+		case "--activity-png":
+			if i+1 >= len(args) || strings.HasPrefix(args[i+1], "-") {
+				normalized = append(normalized, arg, defaultActivityPNGPath())
+				continue
+			}
+		case "--stats":
+			if i+1 >= len(args) || strings.HasPrefix(args[i+1], "-") {
+				normalized = append(normalized, arg, defaultStatsTXTPath())
+				continue
+			}
+		}
+		normalized = append(normalized, arg)
+	}
+	return normalized
+}
+
+func defaultActivityPNGPath() string {
+	return filepath.Clean("chart.png")
+}
+
+func defaultStatsTXTPath() string {
+	return filepath.Clean("stats.txt")
 }

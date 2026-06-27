@@ -10,6 +10,7 @@ import (
 
 	"github.com/vo0ov/tg2txt/internal/activity"
 	"github.com/vo0ov/tg2txt/internal/formatter"
+	"github.com/vo0ov/tg2txt/internal/stats"
 	"github.com/vo0ov/tg2txt/internal/telegram"
 )
 
@@ -17,6 +18,7 @@ type Options struct {
 	Source              string
 	Destination         string
 	ActivityDestination string
+	StatsDestination    string
 	SkipService         bool
 	SkipHeader          bool
 	Format              formatter.Options
@@ -35,12 +37,14 @@ type Result struct {
 	Skipped             int
 	Destination         string
 	ActivityDestination string
+	StatsDestination    string
 }
 
 func Convert(options Options) (result Result, err error) {
 	result = Result{
 		Destination:         options.Destination,
 		ActivityDestination: options.ActivityDestination,
+		StatsDestination:    options.StatsDestination,
 	}
 
 	export, err := loadExport(options.Source)
@@ -115,11 +119,21 @@ func Convert(options Options) (result Result, err error) {
 	}
 
 	if options.ActivityDestination != "" {
-		if _, err := activity.WritePNG(export.Messages, activity.Options{
+		_, activityErr := activity.WritePNG(export.Messages, activity.Options{
 			Destination: options.ActivityDestination,
 			ChatName:    export.Name,
-		}); err != nil {
-			return result, err
+		})
+		if activityErr != nil {
+			return result, activityErr
+		}
+	}
+
+	if options.StatsDestination != "" {
+		statsErr := stats.WriteTXT(export, stats.Options{
+			Destination: options.StatsDestination,
+		})
+		if statsErr != nil {
+			return result, statsErr
 		}
 	}
 

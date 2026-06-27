@@ -2,6 +2,7 @@ package activity
 
 import (
 	"testing"
+	"time"
 
 	"github.com/vo0ov/tg2txt/internal/telegram"
 )
@@ -36,5 +37,26 @@ func TestBuildSeriesRequiresAtLeastOneDatedMessage(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("BuildSeries() error = nil, want non-nil")
+	}
+}
+
+func TestChartValuesExpandsSingleDaySeries(t *testing.T) {
+	daySeries := Series{
+		Days:   []time.Time{time.Date(2025, time.September, 23, 0, 0, 0, 0, time.UTC)},
+		Counts: []float64{1},
+	}
+
+	xValues, yValues := chartValues(daySeries)
+	if len(xValues) != 2 {
+		t.Fatalf("len(xValues) = %d, want 2", len(xValues))
+	}
+	if len(yValues) != 2 {
+		t.Fatalf("len(yValues) = %d, want 2", len(yValues))
+	}
+	if !xValues[1].After(xValues[0]) {
+		t.Fatal("expected second x value to be after first")
+	}
+	if yValues[0] != 1 || yValues[1] != 1 {
+		t.Fatalf("yValues = %v, want [1 1]", yValues)
 	}
 }

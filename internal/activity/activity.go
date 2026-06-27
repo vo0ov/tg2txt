@@ -30,6 +30,7 @@ func WritePNG(messages []telegram.Message, options Options) (result Result, err 
 	if err != nil {
 		return Result{}, err
 	}
+	xValues, yValues := chartValues(series)
 
 	mkdirErr := os.MkdirAll(filepath.Dir(options.Destination), 0750)
 	if mkdirErr != nil {
@@ -99,14 +100,15 @@ func WritePNG(messages []telegram.Message, options Options) (result Result, err 
 					DotColor:    chart.ColorBlue,
 					DotWidth:    4,
 				},
-				XValues: series.Days,
-				YValues: series.Counts,
+				XValues: xValues,
+				YValues: yValues,
 			},
 		},
 	}
 
-	if err := graph.Render(chart.PNG, out); err != nil {
-		return Result{}, fmt.Errorf("failed to render %s: %w", options.Destination, err)
+	renderErr := graph.Render(chart.PNG, out)
+	if renderErr != nil {
+		return Result{}, fmt.Errorf("failed to render %s: %w", options.Destination, renderErr)
 	}
 
 	return Result{
@@ -124,6 +126,20 @@ type Series struct {
 
 func BuildSeries(messages []telegram.Message) (Series, error) {
 	return buildSeries(messages)
+}
+
+func chartValues(series Series) ([]time.Time, []float64) {
+	if len(series.Days) != 1 {
+		return series.Days, series.Counts
+	}
+
+	return []time.Time{
+			series.Days[0],
+			series.Days[0].Add(12 * time.Hour),
+		}, []float64{
+			series.Counts[0],
+			series.Counts[0],
+		}
 }
 
 func buildSeries(messages []telegram.Message) (Series, error) {

@@ -276,3 +276,117 @@ func TestActivityPNGGeneratesChartFile(t *testing.T) {
 		t.Fatalf("stdout = %q", stdout.String())
 	}
 }
+
+func TestActivityPNGUsesDefaultNameWhenValueIsOmitted(t *testing.T) {
+	dir := t.TempDir()
+	input := filepath.Join(dir, "result.json")
+	output := filepath.Join(dir, "chat.txt")
+	defaultChart := filepath.Join(dir, "chart.png")
+
+	export := `{
+		"name": "Team Chat",
+		"type": "private_group",
+		"id": 1,
+		"messages": [
+			{"id": 1, "type": "message", "date": "2025-09-23T20:51:31", "from": "Alice", "text": "one"}
+		]
+	}`
+
+	if err := os.WriteFile(input, []byte(export), 0600); err != nil {
+		t.Fatalf("failed to write input: %v", err)
+	}
+
+	oldWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("os.Getwd() error = %v", err)
+	}
+	chdirErr := os.Chdir(dir)
+	if chdirErr != nil {
+		t.Fatalf("os.Chdir() error = %v", chdirErr)
+	}
+	defer func() {
+		if chdirErr := os.Chdir(oldWD); chdirErr != nil {
+			t.Fatalf("failed to restore working directory: %v", chdirErr)
+		}
+	}()
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := Run([]string{
+		"--input", input,
+		"--output", output,
+		"--activity-png",
+	}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("Run() code = %d, stderr = %q", code, stderr.String())
+	}
+
+	info, err := os.Stat(defaultChart)
+	if err != nil {
+		t.Fatalf("os.Stat(chart.png) error = %v", err)
+	}
+	if info.Size() == 0 {
+		t.Fatal("chart.png is empty")
+	}
+
+	if !bytes.Contains(stdout.Bytes(), []byte("📈 Activity chart → chart.png")) {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+}
+
+func TestStatsUsesDefaultNameWhenValueIsOmitted(t *testing.T) {
+	dir := t.TempDir()
+	input := filepath.Join(dir, "result.json")
+	output := filepath.Join(dir, "chat.txt")
+	defaultStats := filepath.Join(dir, "stats.txt")
+
+	export := `{
+		"name": "Team Chat",
+		"type": "private_group",
+		"id": 1,
+		"messages": [
+			{"id": 1, "type": "message", "date": "2025-09-23T20:51:31", "from": "Alice", "text": "one"}
+		]
+	}`
+
+	if err := os.WriteFile(input, []byte(export), 0600); err != nil {
+		t.Fatalf("failed to write input: %v", err)
+	}
+
+	oldWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("os.Getwd() error = %v", err)
+	}
+	chdirErr := os.Chdir(dir)
+	if chdirErr != nil {
+		t.Fatalf("os.Chdir() error = %v", chdirErr)
+	}
+	defer func() {
+		if chdirErr := os.Chdir(oldWD); chdirErr != nil {
+			t.Fatalf("failed to restore working directory: %v", chdirErr)
+		}
+	}()
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := Run([]string{
+		"--input", input,
+		"--output", output,
+		"--stats",
+	}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("Run() code = %d, stderr = %q", code, stderr.String())
+	}
+
+	got, err := os.ReadFile(defaultStats)
+	if err != nil {
+		t.Fatalf("os.ReadFile(stats.txt) error = %v", err)
+	}
+	if !bytes.Contains(got, []byte("Total messages: 1")) {
+		t.Fatalf("stats.txt = %q", string(got))
+	}
+
+	if !bytes.Contains(stdout.Bytes(), []byte("📊 Stats report → stats.txt")) {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+}

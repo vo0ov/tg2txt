@@ -35,6 +35,7 @@ The output includes messages, timestamps, sender names, replies, forwards, media
 | **Service Events** | Handles calls, joins, leaves, pins, renamed chats, and group updates         |
 | **CLI Flags**      | Supports custom output layers, plain dialogue, anonymization, and message joining |
 | **Activity Graph** | Optionally builds a PNG chart of message volume by day across the full export |
+| **Chat Stats**     | Optionally writes a TXT report with activity, balance, response, content, and message-type metrics |
 | **Release Builds** | Ships archives for Windows, macOS, and Linux across common architectures     |
 
 ---
@@ -135,7 +136,9 @@ tg2txt [flags]
 --no-id        skip Telegram message ids
 --no-service   skip service events
 --activity-png FILE
-               output PNG activity chart by day
+               output PNG activity chart by day (default: chart.png)
+--stats FILE
+               output TXT chat statistics report (default: stats.txt)
 --no-media     skip media/contact/location/poll markers
 --no-reactions skip reaction summaries
 --no-entities  skip Telegram entity formatting
@@ -163,6 +166,9 @@ tg2txt -i backup.json --no-service
 tg2txt --plain-dialogue --anon-peer Bob --anon-self Alex
 tg2txt --plain-dialogue --join-messages --join-window 15
 tg2txt -i result.json -o chat.txt --activity-png activity.png
+tg2txt -i result.json --activity-png
+tg2txt -i result.json --stats
+tg2txt -i result.json --stats chat-stats.txt
 ```
 
 ---
@@ -184,6 +190,17 @@ tg2txt --activity-png activity.png
 ```
 
 This produces a daily PNG timeline from the first exported message to the last one, including quiet days with `0` messages so the full period stays visible.
+If you run `tg2txt --activity-png` without a filename, the chart is saved as `chart.png`.
+
+Optional chat statistics:
+
+```bash
+tg2txt --stats
+tg2txt --stats chat-stats.txt
+```
+
+This produces a TXT report with message counts, participant shares, daily minimums and maximums, active and quiet days, balance metrics, response-time medians and p75 values within a 12-hour window, content ratios, a full message-type ranking, per-participant reaction tops, media/reply/forward counts, active hours, weekday distribution, night activity, and consecutive message series.
+If you run `tg2txt --stats` without a filename, the report is saved as `stats.txt`.
 
 ---
 
@@ -197,6 +214,7 @@ internal/
 ├── cli/                     Flag parsing, help text, stdout/stderr handling
 ├── converter/               JSON file loading and TXT file writing
 ├── formatter/               Message, media, reaction, and service formatting
+├── stats/                   TXT chat statistics report generation
 ├── telegram/                Telegram export JSON schema
 └── version/                 Build-time version, commit, date via ldflags
 ```
@@ -237,6 +255,10 @@ go build -o tg2txt ./cmd
 | Windows | `amd64`, `arm64`, `386`   |
 
 Releases are produced by [CD](https://github.com/vo0ov/tg2txt/actions/workflows/cd.yml) when a `v*` tag is pushed.
+
+## 📝 v3.0.0
+
+`v3.0.0` focuses on richer chat analytics: `--stats` now writes a broad TXT report, includes an unlimited message-type ranking across text, media, and service-event types, and shows per-participant reaction tops.
 
 ## 📝 v2.0.0
 
